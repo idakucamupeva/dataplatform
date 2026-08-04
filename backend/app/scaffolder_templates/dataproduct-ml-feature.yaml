@@ -1,0 +1,119 @@
+id: dataproduct-ml-feature
+name: ML Feature Data Product
+type: dataproduct
+icon: sparkles
+description: >-
+  A data product whose purpose is to serve features to model training and
+  inference. Ships with a feature-store storage area already declared.
+tags: [ml, features]
+
+parameters:
+  - title: Identity
+    fields:
+      - name: name
+        title: Name
+        type: string
+        required: true
+        pattern: "^[a-z0-9]([a-z0-9-]{1,62}[a-z0-9])$"
+        patternMessage: Use lowercase letters, digits and dashes
+        placeholder: churn-features
+      - name: displayName
+        title: Display name
+        type: string
+        required: true
+        placeholder: Churn Features
+      - name: domain
+        title: Domain
+        type: select
+        required: true
+        optionsFrom: domains
+      - name: description
+        title: Description
+        type: text
+        required: true
+
+  - title: Feature store
+    fields:
+      - name: entity
+        title: Primary entity
+        type: string
+        required: true
+        default: customer
+        help: The entity features are keyed by (customer, account, device…).
+      - name: refreshSchedule
+        title: Refresh schedule
+        type: select
+        default: "0 3 * * *"
+        options:
+          - value: "0 * * * *"
+            label: Hourly
+          - value: "0 3 * * *"
+            label: Daily at 03:00
+          - value: "0 3 * * 1"
+            label: Weekly, Monday 03:00
+      - name: email
+        title: Contact e-mail
+        type: string
+        required: true
+        pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+        patternMessage: Enter a valid e-mail address
+      - name: tags
+        title: Tags
+        type: tags
+        default: [ml, features]
+
+descriptor:
+  apiVersion: dataproduct.dmp.io/v1
+  kind: DataProduct
+  metadata:
+    name: "{{ name }}"
+    displayName: "{{ displayName }}"
+    domain: "{{ domain }}"
+    version: 0.1.0
+    description: "{{ description }}"
+    owner: "user:{{ __owner__ }}"
+    email: "{{ email }}"
+    maturity: tactical
+    informationSLA: 24h
+    tags: ${tags}
+  spec:
+    components:
+      - name: feature-store
+        displayName: Feature Store
+        description: "Offline feature table keyed by {{ entity }}_id."
+        kind: storage
+        version: 0.1.0
+        technology: delta-lake
+        platform: Databricks
+        useCaseTemplateId: storage-delta-lake
+        tags: [features]
+        specific:
+          catalog: "{{ domain }}"
+          schema: "{{ name }}"
+          table: "{{ entity }}_features"
+          partitionBy: [event_date]
+          retentionDays: 730
+          refreshSchedule: "{{ refreshSchedule }}"
+    dependsOn: []
+
+files:
+  - path: README.md
+    content: |
+      # {{ displayName }}
+
+      {{ description }}
+
+      Features are keyed by `{{ entity }}_id` and refreshed on `{{ refreshSchedule }}`.
+
+      Add a workload to compute the features and an output port to expose them
+      for training and online inference.
+  - path: components/feature-store/schema.md
+    content: |
+      # Feature schema — {{ entity }}
+
+      | feature | type | description |
+      |---|---|---|
+      | {{ entity }}_id | string | Entity key |
+      | event_date | date | Partition column |
+  - path: docs/.gitkeep
+    content: ""

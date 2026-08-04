@@ -1,0 +1,131 @@
+id: outputport-rest-api
+name: REST API Output Port
+type: component
+kind: outputport
+technology: rest
+platform: Kubernetes
+provisioner: rest
+icon: plug
+description: >-
+  Exposes the data product over a synchronous HTTP API, for operational
+  consumers that need low-latency lookups rather than bulk reads.
+tags: [api, synchronous, operational]
+
+parameters:
+  - title: Component
+    fields:
+      - name: name
+        title: Name
+        type: string
+        required: true
+        pattern: "^[a-z0-9]([a-z0-9-]{1,62}[a-z0-9])$"
+        patternMessage: Use lowercase letters, digits and dashes
+        placeholder: customer-lookup-api
+      - name: displayName
+        title: Display name
+        type: string
+      - name: description
+        title: Description
+        type: text
+        required: true
+
+  - title: Endpoint
+    fields:
+      - name: basePath
+        title: Base path
+        type: string
+        required: true
+        default: /v1/customers
+      - name: authMode
+        title: Authentication
+        type: select
+        default: oauth2
+        options: [oauth2, api-key, mtls]
+      - name: rateLimit
+        title: Rate limit (requests/minute)
+        type: number
+        default: 600
+      - name: replicas
+        title: Replicas
+        type: number
+        default: 2
+
+  - title: Data contract
+    fields:
+      - name: columns
+        title: Response schema
+        type: schema
+        required: true
+      - name: timeliness
+        title: Timeliness
+        type: string
+        default: near real-time
+      - name: upTime
+        title: Availability
+        type: string
+        default: 99.9%
+      - name: termsAndConditions
+        title: Terms and conditions
+        type: text
+        default: Fair use within the published rate limit.
+      - name: tags
+        title: Tags
+        type: tags
+        help: Add `pii` when the response carries personal data.
+
+component:
+  name: "{{ name }}"
+  displayName: "{{ displayName }}"
+  description: "{{ description }}"
+  kind: outputport
+  version: 0.1.0
+  technology: rest
+  platform: Kubernetes
+  outputPortType: Files
+  tags: ${tags}
+  useCaseTemplateId: outputport-rest-api
+  infrastructureTemplateId: provisioner-rest
+  dataContract:
+    termsAndConditions: "{{ termsAndConditions }}"
+    endpoint: "https://api.acme.io{{ basePath }}"
+    schema: ${columns}
+    SLA:
+      intervalOfChange: continuous
+      timeliness: "{{ timeliness }}"
+      upTime: "{{ upTime }}"
+  specific:
+    basePath: "{{ basePath }}"
+    authMode: "{{ authMode }}"
+    rateLimitPerMinute: ${rateLimit}
+    replicas: ${replicas}
+    gateway: acme-api-gateway
+
+files:
+  - path: "components/{{ name }}/openapi.yaml"
+    content: |
+      openapi: 3.0.3
+      info:
+        title: {{ displayName or name }}
+        version: 0.1.0
+        description: {{ description }}
+      paths:
+        {{ basePath }}/{id}:
+          get:
+            summary: Fetch a single record
+            security:
+              - {{ authMode }}: []
+            parameters:
+              - name: id
+                in: path
+                required: true
+                schema: {type: string}
+            responses:
+              "200":
+                description: OK
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+      {% for column in columns %}                  {{ column.name }}: {type: {{ column.dataType }}}
+      {% endfor %}

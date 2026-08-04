@@ -1,0 +1,106 @@
+id: observability-data-quality
+name: Data Quality Monitor
+type: component
+kind: observability
+technology: great-expectations
+platform: Observability Platform
+provisioner: observability
+icon: activity
+description: >-
+  Continuously checks the promises the data product makes — freshness,
+  completeness and validity — and raises alerts when they are broken.
+tags: [quality, monitoring, sla]
+
+parameters:
+  - title: Component
+    fields:
+      - name: name
+        title: Name
+        type: string
+        required: true
+        pattern: "^[a-z0-9]([a-z0-9-]{1,62}[a-z0-9])$"
+        patternMessage: Use lowercase letters, digits and dashes
+        placeholder: quality-checks
+      - name: displayName
+        title: Display name
+        type: string
+      - name: description
+        title: Description
+        type: text
+        required: true
+
+  - title: Checks
+    fields:
+      - name: monitors
+        title: Output port to monitor
+        type: string
+        required: true
+        help: Name of the output port whose data contract is being verified.
+      - name: freshnessMinutes
+        title: Freshness threshold (minutes)
+        type: number
+        default: 120
+      - name: minRowCount
+        title: Minimum row count
+        type: number
+        default: 1
+      - name: nullThresholdPercent
+        title: Maximum null rate (%)
+        type: number
+        default: 5
+      - name: checkSchemaDrift
+        title: Detect schema drift
+        type: boolean
+        default: true
+
+  - title: Alerting
+    fields:
+      - name: channel
+        title: Alert channel
+        type: string
+        default: "#data-alerts"
+      - name: severity
+        title: Severity
+        type: select
+        default: high
+        options: [low, medium, high, critical]
+
+component:
+  name: "{{ name }}"
+  displayName: "{{ displayName }}"
+  description: "{{ description }}"
+  kind: observability
+  version: 0.1.0
+  technology: great-expectations
+  platform: Observability Platform
+  useCaseTemplateId: observability-data-quality
+  infrastructureTemplateId: provisioner-observability
+  specific:
+    monitors: "{{ monitors }}"
+    checks:
+      freshnessMinutes: ${freshnessMinutes}
+      minRowCount: ${minRowCount}
+      nullThresholdPercent: ${nullThresholdPercent}
+      schemaDrift: ${checkSchemaDrift}
+    alerting:
+      channel: "{{ channel }}"
+      severity: "{{ severity }}"
+
+files:
+  - path: "components/{{ name }}/expectations.yml"
+    content: |
+      # Expectations for output port `{{ monitors }}`
+      suite_name: {{ name }}
+      expectations:
+        - expect_table_row_count_to_be_between:
+            min_value: {{ minRowCount }}
+        - expect_column_values_to_not_be_null_percent:
+            max_percent: {{ nullThresholdPercent }}
+        - expect_table_freshness_to_be_within:
+            minutes: {{ freshnessMinutes }}
+      {% if checkSchemaDrift %}  - expect_table_columns_to_match_set:
+            source: data-contract
+      {% endif %}
+      alerting:
+        channel: "{{ channel }}"
+        severity: {{ severity }}

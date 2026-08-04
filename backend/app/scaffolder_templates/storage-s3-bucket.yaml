@@ -1,0 +1,88 @@
+id: storage-s3-bucket
+name: S3 Landing Area
+type: component
+kind: storage
+technology: s3
+platform: AWS
+provisioner: s3
+icon: database
+description: >-
+  An object-storage area owned by the data product, typically used to land raw
+  or intermediate data before it is modelled.
+tags: [storage, aws, raw]
+
+parameters:
+  - title: Component
+    fields:
+      - name: name
+        title: Name
+        type: string
+        required: true
+        pattern: "^[a-z0-9]([a-z0-9-]{1,62}[a-z0-9])$"
+        patternMessage: Use lowercase letters, digits and dashes
+        placeholder: raw-landing
+      - name: displayName
+        title: Display name
+        type: string
+      - name: description
+        title: Description
+        type: text
+        required: true
+
+  - title: Bucket
+    fields:
+      - name: region
+        title: Region
+        type: select
+        default: eu-central-1
+        options: [eu-central-1, eu-west-1, us-east-1, us-west-2]
+      - name: format
+        title: File format
+        type: select
+        default: parquet
+        options: [parquet, avro, json, csv]
+      - name: retentionDays
+        title: Retention (days)
+        type: number
+        default: 365
+      - name: encryption
+        title: Encryption
+        type: select
+        default: aws:kms
+        options: ["aws:kms", "AES256"]
+      - name: versioning
+        title: Object versioning
+        type: boolean
+        default: true
+
+component:
+  name: "{{ name }}"
+  displayName: "{{ displayName }}"
+  description: "{{ description }}"
+  kind: storage
+  version: 0.1.0
+  technology: s3
+  platform: AWS
+  useCaseTemplateId: storage-s3-bucket
+  infrastructureTemplateId: provisioner-s3
+  specific:
+    bucket: "acme-{{ __domain__ }}-{{ __data_product__ }}-{{ name }}"
+    prefix: "{{ name }}/"
+    region: "{{ region }}"
+    format: "{{ format }}"
+    retentionDays: ${retentionDays}
+    encryption: "{{ encryption }}"
+    versioning: ${versioning}
+
+files:
+  - path: "components/{{ name }}/README.md"
+    content: |
+      # {{ displayName or name }}
+
+      {{ description }}
+
+      * Region `{{ region }}`, format `{{ format }}`, retention {{ retentionDays }} days
+      * Encryption `{{ encryption }}`{% if versioning %}, object versioning enabled{% endif %}
+
+      This is an internal storage area. It is **not** part of the public
+      interface of the data product — expose data through an output port.

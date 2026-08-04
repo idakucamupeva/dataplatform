@@ -1,0 +1,106 @@
+id: workload-dbt-model
+name: dbt Transformation
+type: component
+kind: workload
+technology: dbt
+platform: dbt Cloud
+provisioner: dbt
+icon: git-branch
+description: >-
+  A dbt model that transforms the raw storage of the data product into the
+  shape published by its output ports.
+tags: [transformation, sql]
+
+parameters:
+  - title: Component
+    fields:
+      - name: name
+        title: Name
+        type: string
+        required: true
+        pattern: "^[a-z0-9]([a-z0-9-]{1,62}[a-z0-9])$"
+        patternMessage: Use lowercase letters, digits and dashes
+        placeholder: build-customer-snapshot
+      - name: displayName
+        title: Display name
+        type: string
+      - name: description
+        title: Description
+        type: text
+        required: true
+
+  - title: Model
+    fields:
+      - name: materialization
+        title: Materialization
+        type: select
+        default: table
+        options: [table, view, incremental, ephemeral]
+      - name: targetSchema
+        title: Target schema
+        type: string
+        required: true
+      - name: sources
+        title: Source tables
+        type: tags
+        placeholder: "raw.orders, raw.customers"
+      - name: schedule
+        title: Schedule
+        type: select
+        default: "0 4 * * *"
+        options:
+          - value: "@hourly"
+            label: Hourly
+          - value: "0 4 * * *"
+            label: Daily at 04:00
+          - value: manual
+            label: Manual only
+      - name: tests
+        title: Generate default tests
+        type: boolean
+        default: true
+
+component:
+  name: "{{ name }}"
+  displayName: "{{ displayName }}"
+  description: "{{ description }}"
+  kind: workload
+  version: 0.1.0
+  technology: dbt
+  platform: dbt Cloud
+  useCaseTemplateId: workload-dbt-model
+  infrastructureTemplateId: provisioner-dbt
+  specific:
+    project: "{{ __data_product__ }}"
+    model: "{{ name | replace('-', '_') }}"
+    materialization: "{{ materialization }}"
+    targetSchema: "{{ targetSchema }}"
+    sources: ${sources}
+    schedule: "{{ schedule }}"
+    testsEnabled: ${tests}
+
+files:
+  - path: "components/{{ name }}/models/{{ name | replace('-', '_') }}.sql"
+    content: |
+      {{ '{{' }} config(materialized='{{ materialization }}', schema='{{ targetSchema }}') {{ '}}' }}
+
+      -- {{ description }}
+      with
+      {% for source in sources %}    {{ source | replace('.', '_') }} as (select * from {{ '{{' }} source('{{ source.split('.')[0] }}', '{{ source.split('.')[-1] }}') {{ '}}' }}){{ "," if not loop.last }}
+      {% endfor %}
+      select
+          *
+      from {{ (sources[0] | replace('.', '_')) if sources else 'source_table' }}
+  - path: "components/{{ name }}/models/schema.yml"
+    content: |
+      version: 2
+
+      models:
+        - name: {{ name | replace('-', '_') }}
+          description: "{{ description }}"
+      {% if tests %}    columns:
+            - name: id
+              tests:
+                - unique
+                - not_null
+      {% endif %}

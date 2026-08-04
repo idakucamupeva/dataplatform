@@ -1,0 +1,117 @@
+id: dataproduct-standard
+name: Standard Data Product
+type: dataproduct
+icon: package
+description: >-
+  A general purpose analytical data product. Starts empty so you can add
+  storage, workloads and output ports as the product takes shape.
+tags: [core, analytical]
+
+parameters:
+  - title: Identity
+    description: How the data product is addressed across the mesh.
+    fields:
+      - name: name
+        title: Name
+        type: string
+        required: true
+        pattern: "^[a-z0-9]([a-z0-9-]{1,62}[a-z0-9])$"
+        patternMessage: Use lowercase letters, digits and dashes, e.g. customer-360
+        placeholder: customer-360
+        help: Immutable identifier, used to build the URN and the repository name.
+      - name: displayName
+        title: Display name
+        type: string
+        required: true
+        placeholder: Customer 360
+      - name: domain
+        title: Domain
+        type: select
+        required: true
+        optionsFrom: domains
+        help: The business domain accountable for this data product.
+      - name: description
+        title: Description
+        type: text
+        required: true
+        placeholder: What question does this data product answer, and for whom?
+
+  - title: Ownership & governance
+    fields:
+      - name: email
+        title: Contact e-mail
+        type: string
+        required: true
+        pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+        patternMessage: Enter a valid e-mail address
+        placeholder: sales-data@acme.io
+      - name: maturity
+        title: Maturity
+        type: select
+        default: tactical
+        options:
+          - value: tactical
+            label: Tactical — exploratory, best effort support
+          - value: strategic
+            label: Strategic — long lived, formally supported
+      - name: informationSLA
+        title: Information SLA
+        type: string
+        default: 24h
+        placeholder: 24h
+        help: How quickly the domain answers questions about this product.
+      - name: tags
+        title: Tags
+        type: tags
+        placeholder: customer, gdpr, gold
+
+descriptor:
+  apiVersion: dataproduct.dmp.io/v1
+  kind: DataProduct
+  metadata:
+    name: "{{ name }}"
+    displayName: "{{ displayName }}"
+    domain: "{{ domain }}"
+    version: 0.1.0
+    description: "{{ description }}"
+    owner: "user:{{ __owner__ }}"
+    email: "{{ email }}"
+    maturity: "{{ maturity }}"
+    informationSLA: "{{ informationSLA }}"
+    tags: ${tags}
+  spec:
+    components: []
+    dependsOn: []
+
+files:
+  - path: README.md
+    content: |
+      # {{ displayName }}
+
+      {{ description }}
+
+      | | |
+      |---|---|
+      | **Domain** | `{{ domain }}` |
+      | **Owner** | {{ __owner__ }} ({{ email }}) |
+      | **Maturity** | {{ maturity }} |
+
+      ## How this repository works
+
+      `data-product-descriptor.yaml` is the source of truth for this data
+      product. Every change — made through the platform UI or by editing the
+      file directly — is committed here, validated against the federated
+      governance policies and, on release, tagged and handed to the
+      provisioners that create the real infrastructure.
+
+      ## Layout
+
+      ```
+      data-product-descriptor.yaml   metadata, components and dependencies
+      components/                    code and config per component
+      docs/                          additional documentation
+      ```
+  - path: docs/.gitkeep
+    content: ""
+  - path: components/.gitkeep
+    content: ""

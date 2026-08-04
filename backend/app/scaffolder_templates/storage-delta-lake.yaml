@@ -1,0 +1,89 @@
+id: storage-delta-lake
+name: Delta Lake Table
+type: component
+kind: storage
+technology: delta-lake
+platform: Databricks
+provisioner: delta
+icon: layers
+description: >-
+  A managed Delta table inside the domain's catalog, used as the modelled,
+  queryable storage of the data product.
+tags: [storage, lakehouse, databricks]
+
+parameters:
+  - title: Component
+    fields:
+      - name: name
+        title: Name
+        type: string
+        required: true
+        pattern: "^[a-z0-9]([a-z0-9-]{1,62}[a-z0-9])$"
+        patternMessage: Use lowercase letters, digits and dashes
+        placeholder: curated-orders
+      - name: displayName
+        title: Display name
+        type: string
+      - name: description
+        title: Description
+        type: text
+        required: true
+
+  - title: Table
+    fields:
+      - name: catalog
+        title: Catalog
+        type: string
+        required: true
+        default: lakehouse
+      - name: dbSchema
+        title: Schema
+        type: string
+        required: true
+      - name: table
+        title: Table
+        type: string
+        required: true
+      - name: partitionBy
+        title: Partition columns
+        type: tags
+        placeholder: event_date
+      - name: zOrderBy
+        title: Z-order columns
+        type: tags
+      - name: retentionDays
+        title: Time-travel retention (days)
+        type: number
+        default: 30
+
+component:
+  name: "{{ name }}"
+  displayName: "{{ displayName }}"
+  description: "{{ description }}"
+  kind: storage
+  version: 0.1.0
+  technology: delta-lake
+  platform: Databricks
+  useCaseTemplateId: storage-delta-lake
+  infrastructureTemplateId: provisioner-delta
+  specific:
+    catalog: "{{ catalog }}"
+    schema: "{{ dbSchema }}"
+    table: "{{ table }}"
+    partitionBy: ${partitionBy}
+    zOrderBy: ${zOrderBy}
+    retentionDays: ${retentionDays}
+    tableProperties:
+      delta.autoOptimize.optimizeWrite: "true"
+      delta.enableChangeDataFeed: "true"
+
+files:
+  - path: "components/{{ name }}/create_table.sql"
+    content: |
+      create table if not exists {{ catalog }}.{{ dbSchema }}.{{ table }}
+      using delta
+      {% if partitionBy %}partitioned by ({{ partitionBy | join(', ') }})
+      {% endif %}tblproperties (
+        'delta.autoOptimize.optimizeWrite' = 'true',
+        'delta.enableChangeDataFeed' = 'true'
+      );

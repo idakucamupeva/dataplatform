@@ -1,0 +1,123 @@
+id: outputport-snowflake-table
+name: Snowflake Table Output Port
+type: component
+kind: outputport
+technology: snowflake
+platform: Snowflake
+provisioner: snowflake
+icon: table
+description: >-
+  Publishes a curated table or view in Snowflake, with a data contract that
+  consumers can read before requesting access.
+tags: [sql, batch, analytical]
+
+parameters:
+  - title: Component
+    fields:
+      - name: name
+        title: Name
+        type: string
+        required: true
+        pattern: "^[a-z0-9]([a-z0-9-]{1,62}[a-z0-9])$"
+        patternMessage: Use lowercase letters, digits and dashes
+        placeholder: customer-snapshot
+      - name: displayName
+        title: Display name
+        type: string
+        placeholder: Customer Snapshot
+      - name: description
+        title: Description
+        type: text
+        required: true
+
+  - title: Snowflake object
+    fields:
+      - name: database
+        title: Database
+        type: string
+        required: true
+        default: ANALYTICS
+      - name: dbSchema
+        title: Schema
+        type: string
+        required: true
+        placeholder: SALES
+      - name: table
+        title: Table / view
+        type: string
+        required: true
+        placeholder: CUSTOMER_SNAPSHOT
+      - name: warehouse
+        title: Warehouse
+        type: select
+        default: WH_SMALL
+        options: [WH_XSMALL, WH_SMALL, WH_MEDIUM, WH_LARGE]
+
+  - title: Data contract
+    description: What consumers are promised. This is what the marketplace shows.
+    fields:
+      - name: columns
+        title: Schema
+        type: schema
+        required: true
+        help: Declare the columns consumers may rely on. Flag personal data.
+      - name: intervalOfChange
+        title: Interval of change
+        type: select
+        default: 1 day
+        options: [continuous, 1 hour, 6 hours, 1 day, 1 week]
+      - name: timeliness
+        title: Timeliness
+        type: string
+        default: 2 hours
+        help: Maximum lag between the source event and its appearance here.
+      - name: upTime
+        title: Availability
+        type: string
+        default: 99.5%
+      - name: termsAndConditions
+        title: Terms and conditions
+        type: text
+        default: Internal use only. Do not replicate personal data outside the EU.
+      - name: tags
+        title: Tags
+        type: tags
+        help: Add `pii` when the port exposes personal data.
+
+component:
+  name: "{{ name }}"
+  displayName: "{{ displayName }}"
+  description: "{{ description }}"
+  kind: outputport
+  version: 0.1.0
+  technology: snowflake
+  platform: Snowflake
+  outputPortType: SQL
+  tags: ${tags}
+  useCaseTemplateId: outputport-snowflake-table
+  infrastructureTemplateId: provisioner-snowflake
+  dataContract:
+    termsAndConditions: "{{ termsAndConditions }}"
+    endpoint: "snowflake://{{ database }}/{{ dbSchema }}/{{ table }}"
+    schema: ${columns}
+    SLA:
+      intervalOfChange: "{{ intervalOfChange }}"
+      timeliness: "{{ timeliness }}"
+      upTime: "{{ upTime }}"
+  specific:
+    database: "{{ database }}"
+    schema: "{{ dbSchema }}"
+    table: "{{ table }}"
+    warehouse: "{{ warehouse }}"
+    grantRole: "ROLE_{{ database }}_{{ dbSchema }}_{{ name | upper | replace('-', '_') }}_READ"
+
+files:
+  - path: "components/{{ name }}/view.sql"
+    content: |
+      -- Output port: {{ displayName or name }}
+      -- Provisioned into {{ database }}.{{ dbSchema }}.{{ table }}
+      create or replace view {{ database }}.{{ dbSchema }}.{{ table }} as
+      select
+      {% for column in columns %}    {{ column.name }}{{ "," if not loop.last }}
+      {% endfor %}from {{ database }}.{{ dbSchema }}_raw.source_table
+      ;

@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- DataMesh Platform -------------------------------------------------
+# Runtime state: SQLite database and the git repositories of data products.
+/data/
+# Frontend
+node_modules/
+frontend/dist/
+frontend/.smoke/
