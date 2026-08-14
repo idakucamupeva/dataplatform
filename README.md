@@ -45,6 +45,47 @@ cd ../frontend && npm install && npm run dev
 
 ---
 
+## Real GitHub repositories
+
+By default the platform hosts each data product's repository locally (a bare repo under
+`data/repos`), so it works offline and in tests. Give it a token and it uses **GitHub**
+instead: scaffolding a data product creates a real repository, every descriptor change is
+pushed as a commit, and every release is pushed as an annotated tag.
+
+```bash
+export DMP_GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxx   # or put it in backend/.env
+# optional:
+export DMP_GITHUB_OWNER=my-org                 # default: the token's user
+export DMP_GITHUB_REPO_PREFIX=dmp-             # repo name: dmp-<domain>-<name>
+export DMP_GITHUB_REPOS_PRIVATE=true
+make backend
+```
+
+Token type: a **classic PAT** needs the `repo` scope, plus `delete_repo` if deleting a
+data product should also delete its repository (otherwise deletion is skipped with a
+warning). A **fine-grained token** needs *Administration: read & write* and
+*Contents: read & write* on the owner. The plain `GITHUB_TOKEN` variable works as a
+fallback, and `DMP_GITHUB_API_URL` points the client at a GitHub Enterprise instance.
+
+Verify the token before creating anything:
+
+```bash
+curl -s -H "Authorization: Bearer <platform JWT>" localhost:8000/api/platform/github/status
+# → {"enabled": true, "ok": true, "login": "you", "owner": "you", "scopes": ["repo", ...]}
+```
+
+The topbar shows `GitHub repos` when the mode is active, and each product's Repository
+tab links to its repository on GitHub. The token itself never touches disk: workspace
+remotes store the plain `https://github.com/...` URL and pushes authenticate through a
+per-invocation `http.extraheader`.
+
+Heads-up on seeding: `make reset` in GitHub mode creates the five demo repositories for
+real (and deletes them again on the next `--reset`). Use
+`python -m app.seed --reset --local` to keep the demo mesh offline while still using
+GitHub for the products you create through the UI.
+
+---
+
 ## What the platform does
 
 ### 1. Scaffold — a data product starts as a repository

@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.db import init_db
 from app.services.dataproducts import LifecycleError
 from app.services.descriptor_io import DescriptorError
+from app.services.github import GitHubError
 from app.services.marketplace import AccessError
 from app.services.provisioning import ProvisioningError
 from app.services.repository import GitError
@@ -90,6 +91,12 @@ async def _access_error(_: Request, exc: AccessError):
 async def _git_error(_: Request, exc: GitError):
     logger.exception("git operation failed")
     return _problem(status.HTTP_500_INTERNAL_SERVER_ERROR, "Repository error", str(exc))
+
+
+@app.exception_handler(GitHubError)
+async def _github_error(_: Request, exc: GitHubError):
+    logger.error("GitHub call failed: %s", exc)
+    return _problem(status.HTTP_502_BAD_GATEWAY, "GitHub error", str(exc))
 
 
 # --------------------------------------------------------------------------

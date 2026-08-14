@@ -22,11 +22,28 @@ export function RepositoryTab({ dp }: { dp: DataProduct }) {
     queryFn: () => api.get<Version[]>(`/dataproducts/${dp.id}/versions`),
   })
 
+  const location = repo.data?.path ?? dp.repoPath
+  const isGitHub = location.startsWith('http')
+
   return (
     <div className="stack">
-      <Card title="Repository">
+      <Card
+        title="Repository"
+        actions={
+          isGitHub ? (
+            <a className="btn btn--sm" href={location} target="_blank" rel="noreferrer">
+              Open on GitHub ↗
+            </a>
+          ) : undefined
+        }
+      >
         <dl className="kv">
-          <dt>Location</dt><dd className="mono small">{repo.data?.path ?? dp.repoPath}</dd>
+          <dt>Location</dt>
+          <dd className="mono small">
+            {isGitHub
+              ? <a href={location} target="_blank" rel="noreferrer">{location}</a>
+              : location}
+          </dd>
           <dt>Branch</dt><dd className="mono small">main</dd>
           <dt>HEAD</dt><dd className="mono small">{dp.headCommit}</dd>
           <dt>Release tags</dt>

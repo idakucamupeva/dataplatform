@@ -267,6 +267,7 @@ export interface PlatformInfo {
   environments: string[]
   marketplaceGateEnvironment: string
   provisioners: { technology: string; platform: string; requiredKeys: string[] }[]
+  github: { enabled: boolean; owner: string | null; repoPrefix: string }
 }
 
 export interface MarketplaceResult {

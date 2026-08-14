@@ -23,6 +23,7 @@ from app.models import (
     User,
 )
 from app.provisioners import registry as provisioner_registry
+from app.services.github import GitHubError, get_client as get_github_client
 from app.services.marketplace import lineage_graph
 from app.services.policies import POLICIES
 
@@ -48,7 +49,29 @@ def platform_info(_: CurrentUser) -> dict:
             {"technology": p.technology, "platform": p.platform, "requiredKeys": list(p.required_keys)}
             for p in provisioner_registry.all()
         ],
+        # no network call here — just whether a token is configured
+        "github": {
+            "enabled": get_github_client() is not None,
+            "owner": settings.github_owner or None,
+            "repoPrefix": settings.github_repo_prefix,
+        },
     }
+
+
+@router.get("/platform/github/status")
+def github_status(_: CurrentUser) -> dict:
+    """Live check of the configured GitHub token (one API call)."""
+    client = get_github_client()
+    if client is None:
+        return {
+            "enabled": False,
+            "ok": False,
+            "message": "Local mode — set DMP_GITHUB_TOKEN to create data product repositories on GitHub.",
+        }
+    try:
+        return {"enabled": True, "ok": True, **client.status()}
+    except GitHubError as exc:
+        return {"enabled": True, "ok": False, "error": str(exc)}
 
 
 @router.get("/policies")

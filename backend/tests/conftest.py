@@ -17,6 +17,9 @@ _TMP = tempfile.mkdtemp(prefix="dmp-tests-")
 os.environ["DMP_DATA_DIR"] = _TMP
 os.environ["DMP_DATABASE_URL"] = f"sqlite:///{_TMP}/test.db"
 os.environ["DMP_SECRET_KEY"] = "test-secret"
+# Tests must never touch GitHub, whatever tokens the developer's shell exports.
+os.environ["DMP_GITHUB_TOKEN"] = ""
+os.environ["GITHUB_TOKEN"] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402

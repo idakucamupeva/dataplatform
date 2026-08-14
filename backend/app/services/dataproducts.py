@@ -121,6 +121,7 @@ def scaffold(db: Session, *, template_id: str, values: dict[str, Any], owner: Us
         author=owner.display_name,
         email=owner.email,
         message=f"feat: scaffold data product {name} from template {template_id}",
+        description=f"[{domain.name}] {descriptor.metadata.description}",
     )
 
     dp = DataProduct(
@@ -134,7 +135,7 @@ def scaffold(db: Session, *, template_id: str, values: dict[str, Any], owner: Us
         version=descriptor.metadata.version,
         maturity=descriptor.metadata.maturity,
         tags=list(descriptor.metadata.tags),
-        repo_path=str(repository_service.remote_path(slug)),
+        repo_path=repository_service.remote_display(slug),
         descriptor_path=DESCRIPTOR_PATH,
         head_commit=commit,
     )

@@ -10,6 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # <repo-root>/backend/app/core/config.py -> <repo-root>
@@ -31,6 +32,20 @@ class Settings(BaseSettings):
     secret_key: str = "dev-secret-change-me"
     jwt_algorithm: str = "HS256"
     access_token_ttl_minutes: int = 60 * 12
+
+    # --- GitHub -----------------------------------------------------------
+    # When a token is set, every new data product gets a real GitHub
+    # repository and all descriptor commits/tags are pushed to it.  Without a
+    # token the platform falls back to local bare repositories.
+    github_token: str = Field(
+        default="", validation_alias=AliasChoices("DMP_GITHUB_TOKEN", "GITHUB_TOKEN")
+    )
+    # User or organisation the repositories are created under.  Empty means
+    # "whoever owns the token".
+    github_owner: str = ""
+    github_repo_prefix: str = "dmp-"
+    github_repos_private: bool = True
+    github_api_url: str = "https://api.github.com"
 
     # --- platform behaviour ----------------------------------------------
     environments: list[str] = ["development", "qa", "production"]

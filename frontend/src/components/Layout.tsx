@@ -120,6 +120,18 @@ export function Layout() {
               : ''}
           </span>
           <div className="topbar__spacer" />
+          {info && (
+            <span
+              className={`badge ${info.github?.enabled ? 'badge--ok' : ''}`}
+              title={
+                info.github?.enabled
+                  ? `New data products get a GitHub repository${info.github.owner ? ` under ${info.github.owner}` : ''}`
+                  : 'Repositories are local — set DMP_GITHUB_TOKEN to create them on GitHub'
+              }
+            >
+              {info.github?.enabled ? 'GitHub repos' : 'local repos'}
+            </span>
+          )}
           <span className="small faint">{info?.environments.join(' · ')}</span>
         </header>
         <div className="content">

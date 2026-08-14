@@ -1,10 +1,15 @@
 """Git-backed storage for data product repositories.
 
 Every data product owns a repository.  The platform creates it on scaffolding,
-commits every descriptor edit to it, and tags it on release.  A *bare* repo
-under ``data/repos`` plays the role of the remote (the thing a real deployment
-would host on GitHub/GitLab); a working copy under ``data/workspaces`` is what
-the platform edits and pushes from.
+commits every descriptor edit to it, and tags it on release.  A working copy
+under ``data/workspaces`` is what the platform edits and pushes from; the
+remote is one of two things:
+
+* **GitHub mode** — when a token is configured (:mod:`app.services.github`),
+  scaffolding creates a real repository under the configured user/organisation
+  and every commit and tag is pushed there.
+* **Local mode** — without a token, a *bare* repo under ``data/repos`` plays
+  the role of the remote, so the platform works offline and in tests.
 
 Keeping real git underneath — rather than a `descriptor` column — is what gives
 the platform version history, diffs, blame and release tags for free, and is
@@ -13,13 +18,17 @@ what makes "the repository is the source of truth" true rather than a slogan.
 
 from __future__ import annotations
 
+import contextlib
 import shutil
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 from app.core.config import settings
+from app.services import github
+from app.services.github import GitHubClient, GitHubError
 
 
 class GitError(RuntimeError):
@@ -51,11 +60,18 @@ def _run(args: list[str], cwd: Path | None = None) -> str:
 class RepositoryService:
     """Thin, testable wrapper over the handful of git operations we need."""
 
-    def __init__(self, repos_dir: Path | None = None, workspaces_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        repos_dir: Path | None = None,
+        workspaces_dir: Path | None = None,
+        github_factory: Callable[[], GitHubClient | None] | None = None,
+    ) -> None:
         self.repos_dir = repos_dir or settings.repos_dir
         self.workspaces_dir = workspaces_dir or settings.workspaces_dir
         self.repos_dir.mkdir(parents=True, exist_ok=True)
         self.workspaces_dir.mkdir(parents=True, exist_ok=True)
+        # resolved per call, so seed --local / tests can flip modes at runtime
+        self._github = github_factory or github.get_client
 
     # -- naming ------------------------------------------------------------
     def slug(self, domain: str, name: str) -> str:
@@ -76,25 +92,91 @@ class RepositoryService:
         author: str,
         email: str,
         message: str = "chore: scaffold data product",
+        description: str = "",
     ) -> str:
-        """Initialise the remote + working copy and land the first commit."""
-        remote = self.remote_path(slug)
+        """Create the remote (GitHub or local bare), init the working copy and
+        land the first commit."""
         workspace = self.workspace_path(slug)
-        if remote.exists() or workspace.exists():
+        if workspace.exists():
             raise GitError(f"repository '{slug}' already exists")
 
-        remote.parent.mkdir(parents=True, exist_ok=True)
-        _run(["init", "--bare", "--initial-branch=main", str(remote)])
-        _run(["init", "--initial-branch=main", str(workspace)])
-        _run(["remote", "add", "origin", str(remote)], cwd=workspace)
-        return self.commit(slug, files, author=author, email=email, message=message)
+        client = self._github()
+        if client is None:
+            remote = self.remote_path(slug)
+            if remote.exists():
+                raise GitError(f"repository '{slug}' already exists")
+            remote.parent.mkdir(parents=True, exist_ok=True)
+            _run(["init", "--bare", "--initial-branch=main", str(remote)])
+            origin, html_url = str(remote), ""
+        else:
+            repo = client.create_repo(client.repo_name(slug), description=description)
+            origin, html_url = repo["cloneUrl"], repo["htmlUrl"]
+
+        try:
+            _run(["init", "--initial-branch=main", str(workspace)])
+            _run(["remote", "add", "origin", origin], cwd=workspace)
+            if html_url:
+                # remembered for display; the token itself is never written here
+                _run(["config", "dmp.htmlUrl", html_url], cwd=workspace)
+            return self.commit(slug, files, author=author, email=email, message=message)
+        except Exception:
+            # never leave a half-created repository behind
+            shutil.rmtree(workspace, ignore_errors=True)
+            if client is None:
+                shutil.rmtree(self.remote_path(slug), ignore_errors=True)
+            else:
+                with contextlib.suppress(GitHubError):
+                    client.delete_repo(client.repo_name(slug))
+            raise
 
     def destroy(self, slug: str) -> None:
+        client = self._github()
+        if client is not None and self._origin_is_remote(slug):
+            # best effort: needs the delete_repo scope; a failure is logged,
+            # not raised, so the catalog entry can still be removed
+            with contextlib.suppress(GitHubError):
+                client.delete_repo(client.repo_name(slug))
         shutil.rmtree(self.remote_path(slug), ignore_errors=True)
         shutil.rmtree(self.workspace_path(slug), ignore_errors=True)
 
     def exists(self, slug: str) -> bool:
-        return self.remote_path(slug).exists()
+        if self.workspace_path(slug).exists() or self.remote_path(slug).exists():
+            return True
+        client = self._github()
+        return client is not None and client.repo_exists(client.repo_name(slug))
+
+    def remote_display(self, slug: str) -> str:
+        """What to show as the repository's location: the GitHub URL when the
+        product lives there, the local bare path otherwise."""
+        workspace = self.workspace_path(slug)
+        if workspace.exists():
+            with contextlib.suppress(GitError):
+                url = _run(["config", "--get", "dmp.htmlUrl"], cwd=workspace).strip()
+                if url:
+                    return url
+        return str(self.remote_path(slug))
+
+    def _origin_is_remote(self, slug: str) -> bool:
+        workspace = self.workspace_path(slug)
+        if not workspace.exists():
+            # workspace already gone: only GitHub can tell whether the repo exists
+            client = self._github()
+            return client is not None and client.repo_exists(client.repo_name(slug))
+        # `dmp.htmlUrl` is written exactly when the repo was created on GitHub
+        with contextlib.suppress(GitError):
+            return bool(_run(["config", "--get", "dmp.htmlUrl"], cwd=workspace).strip())
+        return False
+
+    def _net_args(self, workspace: Path) -> list[str]:
+        """Per-invocation auth for pushes to an https remote — keeps the token
+        out of every on-disk git config."""
+        with contextlib.suppress(GitError):
+            url = _run(["remote", "get-url", "origin"], cwd=workspace).strip()
+            if url.startswith("http"):
+                client = self._github()
+                if client is not None:
+                    return ["-c", f"http.extraheader=Authorization: Basic {client.basic_auth}"]
+        return []
 
     # -- content -----------------------------------------------------------
     def commit(
@@ -124,7 +206,7 @@ class RepositoryService:
             ],
             cwd=workspace,
         )
-        _run(["push", "--quiet", "origin", "main"], cwd=workspace)
+        _run([*self._net_args(workspace), "push", "--quiet", "origin", "main"], cwd=workspace)
         return self.head(slug)
 
     def read(self, slug: str, path: str, ref: str = "HEAD") -> str:
@@ -183,7 +265,7 @@ class RepositoryService:
             ],
             cwd=workspace,
         )
-        _run(["push", "--quiet", "origin", tag], cwd=workspace)
+        _run([*self._net_args(workspace), "push", "--quiet", "origin", tag], cwd=workspace)
 
     def tags(self, slug: str) -> list[str]:
         out = _run(["tag", "--sort=-creatordate"], cwd=self._require_workspace(slug))

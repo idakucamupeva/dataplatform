@@ -19,7 +19,7 @@ from app.core.config import settings
 from app.core.db import Base, SessionLocal, engine, init_db
 from app.core.security import hash_password
 from app.models import Domain, Role, User
-from app.services import dataproducts, marketplace, provisioning
+from app.services import dataproducts, github, marketplace, provisioning
 from app.services.descriptor_io import serialize
 
 PASSWORD = "password123"
@@ -54,8 +54,27 @@ def _columns(*rows) -> list[dict]:
     ]
 
 
+# the repositories this script creates, so --reset can clean them up on GitHub too
+DEMO_SLUGS = [
+    "sales__customer-360",
+    "sales__order-events",
+    "marketing__campaign-attribution",
+    "finance__revenue-reporting",
+    "logistics__delivery-promise",
+]
+
+
 def reset() -> None:
     Base.metadata.drop_all(bind=engine)
+    client = github.get_client()
+    if client is not None:
+        for slug in DEMO_SLUGS:
+            name = client.repo_name(slug)
+            try:
+                if client.repo_exists(name) and client.delete_repo(name):
+                    print(f"  deleted GitHub repository {client.owner}/{name}")
+            except Exception as exc:  # noqa: BLE001 - reset stays best-effort
+                print(f"  ! could not delete {client.owner}/{name}: {exc}")
     shutil.rmtree(settings.repos_dir, ignore_errors=True)
     shutil.rmtree(settings.workspaces_dir, ignore_errors=True)
     settings.ensure_dirs()
@@ -484,7 +503,11 @@ def seed() -> None:  # noqa: PLR0915 - a linear script reads better than helpers
         print(f"  domains     : {', '.join(d[0] for d in DOMAINS)}")
         print("  products    : customer-360, order-events, campaign-attribution, "
               "revenue-reporting, delivery-promise")
-        print(f"  repositories: {settings.repos_dir}")
+        client = github.get_client()
+        if client is not None:
+            print(f"  repositories: https://github.com/{client.owner} (prefix '{client.repo_prefix}')")
+        else:
+            print(f"  repositories: {settings.repos_dir} (local mode)")
     except Exception:
         db.rollback()
         raise
@@ -495,7 +518,21 @@ def seed() -> None:  # noqa: PLR0915 - a linear script reads better than helpers
 def main() -> int:
     parser = argparse.ArgumentParser(description="Seed the DataMesh Platform with demo data")
     parser.add_argument("--reset", action="store_true", help="drop the database and all repositories first")
+    parser.add_argument(
+        "--local", action="store_true",
+        help="keep the demo repositories local even when a GitHub token is configured",
+    )
     args = parser.parse_args()
+    if args.local:
+        github.disable()
+
+    client = github.get_client()
+    if client is not None:
+        print(
+            f"GitHub mode is ON — seeding will create {len(DOMAINS) + 1} real repositories "
+            f"under '{settings.github_owner or 'the token user'}' "
+            f"(prefix '{settings.github_repo_prefix}'). Pass --local to keep the demo offline."
+        )
     if args.reset:
         reset()
     seed()

@@ -217,7 +217,10 @@ their populated state. It is a cheap substitute for a browser-driven end-to-end 
   (`status`, `started_at`, `finished_at`), so the change is contained.
 * Authentication is a local user table issuing JWTs, not an enterprise identity provider,
   and roles are platform-wide rather than per-domain groups.
-* Git remotes are bare repositories on the local filesystem. `RepositoryService` is the
-  only module that knows this.
+* Git remotes are bare repositories on the local filesystem **unless a GitHub token is
+  configured** (`DMP_GITHUB_TOKEN`), in which case each data product gets a real GitHub
+  repository and all commits/tags are pushed there (`services/github.py` +
+  `RepositoryService`). The mode is chosen per operation, so the same deployment can be
+  switched by changing one environment variable.
 * SQLite by default. `DMP_DATABASE_URL` accepts any SQLAlchemy URL; nothing in the schema
   is SQLite-specific.
