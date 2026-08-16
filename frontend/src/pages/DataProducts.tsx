@@ -73,7 +73,7 @@ export function DataProductsPage() {
       ) : (
         <div className="grid grid--2">
           {products.data!.map((dp) => (
-            <Link key={dp.id} to={`/products/${dp.id}`} className="card card--interactive" style={{ color: 'inherit', textDecoration: 'none' }}>
+            <Link key={dp.id} to={`/products/${dp.id}`} className="card card--interactive">
               <div className="card__body">
                 <div className="row row--between mb-1">
                   <DomainChip name={dp.domain} />

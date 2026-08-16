@@ -218,71 +218,77 @@ function SchemaEditor({ value, onChange }: { value: SchemaColumn[]; onChange: (v
 
   return (
     <div>
-      <div className="schema-row schema-row--head">
-        <div>Column</div>
-        <div>Type</div>
-        <div>Description</div>
-        <div title="May the column be null?">Null</div>
-        <div title="Does the column carry personal data?">PII</div>
-        <div>Class</div>
-      </div>
+      {/* header and rows share ONE grid (rows are display: contents), so the
+          NULL / PII / CLASS labels always sit exactly over their columns */}
+      <div className="table-wrap">
+        <div className="schema-grid">
+          <div className="schema-grid__head">Column</div>
+          <div className="schema-grid__head">Type</div>
+          <div className="schema-grid__head">Description</div>
+          <div className="schema-grid__head schema-row__check" title="May the column be null?">Null</div>
+          <div className="schema-grid__head schema-row__check" title="Does the column carry personal data?">PII</div>
+          <div className="schema-grid__head">Class</div>
 
-      {value.map((column, index) => (
-        <div className="schema-row" key={index}>
-          <input
-            className="input input--mono"
-            value={column.name}
-            placeholder="customer_id"
-            onChange={(e) => update(index, { name: e.target.value })}
-          />
-          <select className="select" value={column.dataType} onChange={(e) => update(index, { dataType: e.target.value })}>
-            {DATA_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-          </select>
-          <input
-            className="input"
-            value={column.description ?? ''}
-            placeholder="What a consumer can rely on"
-            onChange={(e) => update(index, { description: e.target.value })}
-          />
-          <input
-            type="checkbox"
-            aria-label="nullable"
-            checked={column.nullable !== false}
-            onChange={(e) => update(index, { nullable: e.target.checked })}
-          />
-          <input
-            type="checkbox"
-            aria-label="personal data"
-            checked={Boolean(column.pii)}
-            onChange={(e) =>
-              update(index, {
-                pii: e.target.checked,
-                // personal data may not stay `internal` — governance rejects it
-                classification: e.target.checked && (column.classification ?? 'internal') === 'internal'
-                  ? 'confidential'
-                  : column.classification,
-              })
-            }
-          />
-          <div className="row" style={{ gap: 4 }}>
-            <select
-              className="select"
-              value={column.classification ?? 'internal'}
-              onChange={(e) => update(index, { classification: e.target.value as SchemaColumn['classification'] })}
-            >
-              {CLASSIFICATIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              title="Remove column"
-              onClick={() => onChange(value.filter((_, i) => i !== index))}
-            >
-              ✕
-            </button>
-          </div>
+          {value.map((column, index) => (
+            <div className="schema-row" key={index}>
+              <input
+                className="input input--mono"
+                value={column.name}
+                placeholder="customer_id"
+                onChange={(e) => update(index, { name: e.target.value })}
+              />
+              <select className="select" value={column.dataType} onChange={(e) => update(index, { dataType: e.target.value })}>
+                {DATA_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+              <input
+                className="input"
+                value={column.description ?? ''}
+                placeholder="What a consumer can rely on"
+                onChange={(e) => update(index, { description: e.target.value })}
+              />
+              <input
+                type="checkbox"
+                className="schema-row__check"
+                aria-label="nullable"
+                checked={column.nullable !== false}
+                onChange={(e) => update(index, { nullable: e.target.checked })}
+              />
+              <input
+                type="checkbox"
+                className="schema-row__check"
+                aria-label="personal data"
+                checked={Boolean(column.pii)}
+                onChange={(e) =>
+                  update(index, {
+                    pii: e.target.checked,
+                    // personal data may not stay `internal` — governance rejects it
+                    classification: e.target.checked && (column.classification ?? 'internal') === 'internal'
+                      ? 'confidential'
+                      : column.classification,
+                  })
+                }
+              />
+              <div className="row" style={{ gap: 4 }}>
+                <select
+                  className="select"
+                  value={column.classification ?? 'internal'}
+                  onChange={(e) => update(index, { classification: e.target.value as SchemaColumn['classification'] })}
+                >
+                  {CLASSIFICATIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  title="Remove column"
+                  onClick={() => onChange(value.filter((_, i) => i !== index))}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
 
       <button type="button" className="btn btn--sm" onClick={() => onChange([...value, emptyColumn()])}>
         + Add column

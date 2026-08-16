@@ -58,7 +58,7 @@ export function MarketplacePage() {
               </div>
               <div className="grid grid--2">
                 {result.data!.items.map((dp) => (
-                  <Link key={dp.id} to={`/marketplace/${dp.id}`} className="card card--interactive" style={{ color: 'inherit', textDecoration: 'none' }}>
+                  <Link key={dp.id} to={`/marketplace/${dp.id}`} className="card card--interactive">
                     <div className="card__body">
                       <div className="row row--between mb-1">
                         <DomainChip name={dp.domain} />
